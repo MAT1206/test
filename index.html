@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>6人抽籤 🎰</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+      color: #fff;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+      text-shadow: 0 0 20px rgba(233, 196, 106, 0.8);
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: #a8b2d8;
+      margin-bottom: 36px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .card-wrapper {
+      perspective: 800px;
+    }
+
+    .card {
+      width: 100%;
+      padding-top: 120%;
+      position: relative;
+      cursor: pointer;
+      transform-style: preserve-3d;
+      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 16px;
+    }
+
+    .card.flipped {
+      transform: rotateY(180deg);
+      cursor: default;
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    /* Front face – question mark */
+    .card-front {
+      background: linear-gradient(145deg, #e94560, #c62a47);
+      box-shadow: 0 8px 32px rgba(233, 69, 96, 0.45);
+      flex-direction: column;
+      gap: 8px;
+      transition: box-shadow 0.2s;
+    }
+
+    .card:not(.flipped) .card-front:hover {
+      box-shadow: 0 12px 40px rgba(233, 69, 96, 0.7);
+    }
+
+    .card-front .question-mark {
+      font-size: 3rem;
+      user-select: none;
+    }
+
+    .card-front .player-label {
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.85);
+      letter-spacing: 1px;
+    }
+
+    /* Back face – number */
+    .card-back {
+      background: linear-gradient(145deg, #e9c46a, #f4a261);
+      box-shadow: 0 8px 32px rgba(233, 196, 106, 0.45);
+      transform: rotateY(180deg);
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card-back .number {
+      font-size: 4rem;
+      font-weight: 900;
+      color: #1a1a2e;
+      line-height: 1;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .card-back .number-label {
+      font-size: 0.8rem;
+      color: rgba(26, 26, 46, 0.75);
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .actions {
+      margin-top: 36px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 12px 32px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: 1px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    button:active { transform: scale(0.96); }
+
+    #btn-reveal-all {
+      background: linear-gradient(135deg, #e94560, #c62a47);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.5);
+    }
+
+    #btn-reveal-all:hover {
+      box-shadow: 0 6px 28px rgba(233, 69, 96, 0.75);
+    }
+
+    #btn-reset {
+      background: linear-gradient(135deg, #4ecdc4, #2ab7ae);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(78, 205, 196, 0.5);
+    }
+
+    #btn-reset:hover {
+      box-shadow: 0 6px 28px rgba(78, 205, 196, 0.75);
+    }
+
+    .status-bar {
+      margin-top: 20px;
+      font-size: 0.95rem;
+      color: #a8b2d8;
+      height: 24px;
+      transition: opacity 0.3s;
+    }
+
+    .status-bar.done {
+      color: #e9c46a;
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+
+    /* Confetti burst overlay */
+    #confetti-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    @media (max-width: 420px) {
+      h1 { font-size: 1.6rem; }
+      .cards-grid { gap: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🎰 抽號碼籤</h1>
+  <p class="subtitle">6位參加者，每人點擊牌面抽取號碼</p>
+
+  <div class="cards-grid" id="cards-grid"></div>
+
+  <div class="actions">
+    <button id="btn-reveal-all">全部翻開</button>
+    <button id="btn-reset">重新抽籤</button>
+  </div>
+
+  <p class="status-bar" id="status-bar">尚有 6 人未抽籤</p>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <script>
+    const TOTAL = 6;
+
+    /* ── Shuffle helper ── */
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    /* ── State ── */
+    let numbers = [];
+    let flippedCount = 0;
+
+    function init() {
+      numbers = shuffleArray([1, 2, 3, 4, 5, 6]);
+      flippedCount = 0;
+      renderCards();
+      updateStatus();
+    }
+
+    /* ── Render cards ── */
+    function renderCards() {
+      const grid = document.getElementById('cards-grid');
+      grid.innerHTML = '';
+
+      for (let i = 0; i < TOTAL; i++) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'card-wrapper';
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.index = i;
+
+        card.innerHTML = `
+          <div class="card-face card-front">
+            <span class="question-mark">❓</span>
+            <span class="player-label">第 ${i + 1} 位</span>
+          </div>
+          <div class="card-face card-back">
+            <span class="number">${numbers[i]}</span>
+            <span class="number-label">號</span>
+          </div>
+        `;
+
+        card.addEventListener('click', () => flipCard(card));
+        wrapper.appendChild(card);
+        grid.appendChild(wrapper);
+      }
+    }
+
+    /* ── Flip a single card ── */
+    function flipCard(card) {
+      if (card.classList.contains('flipped')) return;
+      card.classList.add('flipped');
+      flippedCount++;
+      updateStatus();
+      if (flippedCount === TOTAL) onAllFlipped();
+    }
+
+    /* ── Reveal all ── */
+    document.getElementById('btn-reveal-all').addEventListener('click', () => {
+      document.querySelectorAll('.card:not(.flipped)').forEach((card, i) => {
+        setTimeout(() => flipCard(card), i * 120);
+      });
+    });
+
+    /* ── Reset ── */
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      stopConfetti();
+      init();
+    });
+
+    /* ── Status text ── */
+    function updateStatus() {
+      const bar = document.getElementById('status-bar');
+      const remaining = TOTAL - flippedCount;
+      if (remaining === 0) {
+        bar.textContent = '🎉 全部抽籤完成！';
+        bar.classList.add('done');
+      } else {
+        bar.textContent = `尚有 ${remaining} 人未抽籤`;
+        bar.classList.remove('done');
+      }
+    }
+
+    /* ── Confetti ── */
+    let confettiInterval = null;
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function createParticle() {
+      return {
+        x: Math.random() * canvas.width,
+        y: -10,
+        r: Math.random() * 8 + 4,
+        color: `hsl(${Math.random() * 360},90%,60%)`,
+        vx: (Math.random() - 0.5) * 4,
+        vy: Math.random() * 4 + 2,
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.2,
+        shape: Math.random() > 0.5 ? 'rect' : 'circle',
+      };
+    }
+
+    function drawParticle(p) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function tickConfetti() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.rotSpeed;
+        drawParticle(p);
+      });
+      particles = particles.filter(p => p.y < canvas.height + 20);
+      for (let i = 0; i < 5; i++) particles.push(createParticle());
+    }
+
+    function startConfetti() {
+      particles = [];
+      if (confettiInterval) clearInterval(confettiInterval);
+      confettiInterval = setInterval(tickConfetti, 16);
+      setTimeout(stopConfetti, 4000);
+    }
+
+    function stopConfetti() {
+      if (confettiInterval) { clearInterval(confettiInterval); confettiInterval = null; }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles = [];
+    }
+
+    function onAllFlipped() {
+      startConfetti();
+    }
+
+    /* ── Boot ── */
+    init();
+  </script>
+</body>
+</html>
